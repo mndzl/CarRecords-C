@@ -1,6 +1,6 @@
 /*
     Written by Luis Mendez
-    Date Written: May 24, 2023
+    Date Written: Jul 5, 2024
     Purpose: 
         Disjoin-Auto-Assignment
         Create a program to store information about automobiles. 
@@ -35,8 +35,8 @@
     * Function to add an auto - DONE
     * Function display output by cost low to high - DONE
     * Function display output by Make A to Z - DONE
-    * Function to write all data to a binary file - 
-    * Function to free all memory from the heap - 
+    * Function to write all data to a binary file - DONE
+    * Function to free all memory from the heap - DONE
 */
 
 #include <stdio.h>
@@ -53,20 +53,32 @@ typedef struct{
 
 } AUTO;
 
+// Adds auto to record and saves to file
+void addAuto(AUTO**, int*, int);
+
+// Creates file
+int createFile(AUTO***, int*, int*);
+
+// Displays all cars ordered by cost from low to high
+void displayCostLowToHigh(AUTO**, int);
+
 // Displays menu and returns option from user
 void displayMenu(char option[]);
 
-void addAuto(AUTO**, int*, int);
-
-void displayCostLowToHigh(AUTO**, int);
-
+// Displays all cars ordered by make from A to Z
 void displayMakeAscendingOrder(AUTO**, int);
 
+// Exits program and frees the auto array
+void exitProgram(AUTO**, int, int);
+
+// Helper function for pausing
+void myPause();
+
+// Makes effective changes into file
+void saveChanges(AUTO**, int, int);
+
+// Retrieves data from file or creates is if it doesnt exist
 int retrieveData(AUTO***, int*, int*);
-
-int createFile(AUTO***, int*, int*);
-
-void exitProgram(AUTO**, int);
 
 // Coloring
 void purple(){printf("\033[1;35m");};
@@ -76,11 +88,6 @@ void red () { printf("\033[1;31m"); }
 void yellow (){ printf("\033[1;33m"); }
 void reset () { printf("\033[0m"); }
 
-void myPause() {
-	getchar();
-	printf("\nPress ENTER to continue....\n");
-	getchar();
-}
 
 int main(){
     // Program variables
@@ -91,16 +98,14 @@ int main(){
 
     // Retrieve data from file or create new record list
     int data = retrieveData(&autos, &eSize, &maxCars);
-    if (!data) return -1;
-    // printf("%i cars added. Limit: %i\n", eSize, maxCars);
-    // printf("Car 1 is a %s.\n", autos[0]->model);
 
+    // Main flow
     while(1){
         // Retrieve menu option
         displayMenu(option);
         // printf("You selected %s\n", option);
         // Single letter
-        if(option[0] == 'Q') exitProgram(autos, eSize);
+        if(option[0] == 'Q') exitProgram(autos, eSize, maxCars);
         else if(option[0] == 'A') addAuto(autos, &eSize, maxCars);
         else if(option[0] == 'D'){
             // Double letter
@@ -112,11 +117,42 @@ int main(){
     return 0;
 }
 
-void exitProgram(AUTO** autos, int eSize){
+void exitProgram(AUTO** autos, int eSize, int maxCars){
+    // Saving changes into file
+    saveChanges(autos, eSize, maxCars);
     printf("\nExiting...\n");
+
+    // Freeing memory
     for(int i=0; i<eSize; i++) free(autos[i]);
     free(autos);
+
     exit(1);
+}
+
+void saveChanges(AUTO** autos, int eSize, int maxCars){
+    yellow();
+    printf("\nUpdating file... ");
+    reset();
+
+    // Write values on file
+    FILE* f = fopen("autorecords.bin", "wb");
+    if(f == NULL){
+        red();
+        printf("Error.");
+        reset();
+
+        return;
+    }
+    fwrite(&eSize, sizeof(int), 1, f);
+    fwrite(&maxCars, sizeof(int), 1, f);
+    for(int i=0; i<eSize; i++){
+        fwrite(autos[i], sizeof(AUTO), 1, f);
+    }
+
+    green();
+    printf("Done.\n");
+    fclose(f);
+    reset();
 }
 
 void displayMenu(char option[]){
@@ -143,13 +179,11 @@ void displayMenu(char option[]){
                 reset();
             }
             else valid = 1;
-            // printf("Single letter!\n");
 
         }else{
             option[0] = toupper(option[0]);
             option[1] = toupper(option[1]);
 
-            // printf("0: %c, 1: %c\n", option[0], option[1]);
             // It is display, checking order...
             if (option[0] != 'D' || (option[1] != 'C' && option[1] != 'M')) {
                 yellow();
@@ -157,31 +191,65 @@ void displayMenu(char option[]){
                 reset();
             }
             else valid = 1;
-            // printf("Double letter!\n");
         }
     }
 }
 
 int retrieveData(AUTO*** autos, int* eSize, int* maxCars){
-    int exitCode;
+    int exitCode = 0;
+    FILE* f = fopen("autorecords.bin", "rb");
+    if(f == NULL){
+        // No file found, creating one
+        createFile(autos, eSize, maxCars);
+    }else{
+        // Reading from file and allocating memory for auto array
+        fread(eSize, sizeof(int), 1, f);
+        fread(maxCars, sizeof(int), 1, f);
 
-    exitCode = createFile(autos, eSize, maxCars);
+        *autos = calloc(*maxCars, sizeof(AUTO*));
+        if (*autos == NULL) return 0;
+        for(int i=0; i<*maxCars; i++){
+            (*autos)[i] = calloc(1, sizeof(AUTO));
+            if((*autos)[i] == NULL) return 0;
+            fread((*autos)[i], sizeof(AUTO), 1, f);
+        }
 
-    if (exitCode == 1){
-        green();
-        printf("File created succesfully.\n");
-        reset();
+        if(*autos != NULL){
+            green();
+                printf("File recovered succesfully.\n");
+            reset();
+            exitCode = 1;
+        }else{
+            red();
+                printf("There was an error recovering the file.\n");
+            reset(); 
+                exitCode = 0;
+        }
     }
-    else {
-        red();
-        printf("There was an error creating the file.\n");
-        reset();
-    }
+
+    fclose(f);
 
     return exitCode;
 }
 
 int createFile(AUTO*** autos, int* eSize, int* n){
+    yellow();
+    printf("Creating file... ");
+    FILE* f = fopen("autorecords.bin", "wb");
+    if(f == NULL){
+        red();
+        printf("Error.");
+        reset();
+
+        return 0;
+    }else{
+        green();
+        printf("Done.\n");
+        reset();
+    }
+    reset();
+
+    // Allocating space for newly created file and auto array
     printf("Enter number of cars to add: "); scanf(" %i", n);
 
     *autos = calloc(*n, sizeof(AUTO*));
@@ -195,7 +263,7 @@ int createFile(AUTO*** autos, int* eSize, int* n){
 }
 
 void addAuto(AUTO** autos, int* eSize, int maxCars){
-    // printf("eSize is %i\n", *eSize);
+    // Check if still space for more cars
     if(*eSize == maxCars){
         red();
         printf("Could not create. You have reached the maximum number of cars (%i).\n", maxCars);
@@ -205,7 +273,6 @@ void addAuto(AUTO** autos, int* eSize, int maxCars){
     }
 
     printf("\n======== ADDING CAR ========\n");
-
     char make[50];
     char model[50];
     int yearBuilt;
@@ -241,6 +308,7 @@ void addAuto(AUTO** autos, int* eSize, int maxCars){
     green();
     printf("Car created.\n");
     reset();
+    saveChanges(autos, *eSize, maxCars);
     PAUSE;
 }
 
@@ -252,7 +320,7 @@ void displayCostLowToHigh(AUTO** autos, int eSize){
         return;
     }
 
-    // Sorting by cost from low to high
+    // Sorting by cost from low to high with bubble sort
     int swapped = 0;
     do{
         // flag
@@ -267,7 +335,6 @@ void displayCostLowToHigh(AUTO** autos, int eSize){
                     *autos[j] = dummy;
                     
                     swapped = 1;
-                    printf("SWAP!");
                 }
             }
         }
@@ -293,7 +360,7 @@ void displayMakeAscendingOrder(AUTO** autos, int eSize){
         return;
     }
 
-    // Sorting by make ascending
+    // Sorting by make ascending with bubble sort
     int swapped = 0;
     do{
         // flag
@@ -322,4 +389,10 @@ void displayMakeAscendingOrder(AUTO** autos, int eSize){
         printf("%s\t%s\t%i\t%.2f\n", autos[i]->make, autos[i]->model, autos[i]->yearBuilt, autos[i]->cost);
     }
     PAUSE;
+}
+
+void myPause() {
+	getchar();
+	printf("\nPress ENTER to continue....\n");
+	getchar();
 }
