@@ -1,14 +1,31 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+typedef struct{
+    char make[50];
+    char model[50];
+    int yearBuilt;
+    float cost;
+
+} AUTO;
+
 int main(){
-    int* array;
-    array = calloc(5, sizeof(int));
+    AUTO** orderedlist;
 
-    array[2] = 12;
+    int swapped;
+    do{
+        // flag
+        swapped = 0;
 
-    printf("%i %i", array[0], array[2]);
+        for(int i=0; i<eSize-1; i++){
+            for(int j=i+1; j<eSize; j++){
+                if(autos[i]->cost > autos[j]->cost){
+                    AUTO dummy;
+                    memcpy(dummy, autos[i]);
+                    
+                }
+            }
+        }
 
-
-    return 0;
+    }while(swapped)    return 0;
 }
